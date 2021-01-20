@@ -35,13 +35,13 @@ from transformers import (
     BertConfig,
     BertForMaskedLM,
     BertTokenizer,
-    DataCollatorForLanguageModeling,
     HfArgumentParser,
     Trainer,
     TrainingArguments,
     set_seed
 )
 from transformers.trainer_utils import is_main_process
+from data_collator import DataCollatorForLanguageModeling
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,7 @@ all_emoji_regex = re.compile(r'['
                              '\U0001f4a6\U0001f4a8-\U0001f4a9\U0001f4ab-\U0001f4ad\U0001f4af\U0001f600-'
                              '\U0001f640\U0001f648-\U0001f64a'
                              ']', re.UNICODE)
+          
 
 @dataclass
 class ModelArguments:
@@ -257,7 +258,7 @@ def main():
 
     # Data collator
     # This one will take care of randomly masking the tokens.
-    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm_probability=data_args.mlm_probability)
+    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, emo_mlm_probability=data_args.emo_mlm_probability, mlm_probability=data_args.mlm_probability, emo_lexicon=emo_lexicon)
 
      # Initialize our Trainer
     trainer = Trainer(
