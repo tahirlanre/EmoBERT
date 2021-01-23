@@ -21,6 +21,7 @@ https://huggingface.co/models?filter=masked-lm
 import logging
 import math
 import os
+import glob
 import pickle
 import sys
 from dataclasses import dataclass, field
@@ -217,7 +218,7 @@ def main():
         extension = data_args.train_file.split(".")[-1]
     if extension == 'txt':
         extension = 'text'
-    datasets = load_dataset(extension, data_files=data_files, column_names=[i for i in range(16)])
+    datasets = load_dataset(extension, data_files=data_files)
 
     # Load pretrained model and tokenizer
     model_checkpoint = model_args.model_name_or_path if model_args.model_name_or_path else 'bert-base-uncased'
@@ -238,7 +239,7 @@ def main():
         column_names = datasets["train"].column_names
     else:
         column_names = datasets["validation"].column_names
-    text_column_name = "text" if "text" in column_names else column_names[3]
+    text_column_name = "text" if "text" in column_names else column_names[1]
 
     def filter_function(examples):
         return _emoji_present(examples[text_column_name]) # TODO and _emolex_present(examples['text'])
