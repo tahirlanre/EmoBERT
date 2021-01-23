@@ -17,8 +17,7 @@ Fine-tuning the library models for masked language modeling (BERT, ALBERT, RoBER
 Here is the full list of checkpoints on the hub that can be fine-tuned by this script:
 https://huggingface.co/models?filter=masked-lm
 """
-# You can also adapt this script on your own masked language modeling task. Pointers for this are left as comments.
-
+# Adapted from transformers/examples/language-modeling/run_mlm.py
 import logging
 import math
 import os
@@ -90,6 +89,10 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "An optional input evaluation data file to evaluate the perplexity on (a text file)."},
     )
+    train_data_dir: Optional[str] = field(
+        default=None,
+        metadata={"help": "The input data folder that contains training data file (a text file)."},
+    )
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
@@ -125,7 +128,7 @@ class DataTrainingArguments:
     )
 
     def __post_init__(self):
-        if self.train_file is None and self.validation_file is None:
+        if self.train_file is None and self.validation_file is None and self.train_data_dir is None:
             raise ValueError("Need a training/validation file")
         else:
             if self.train_file is not None:
@@ -133,6 +136,10 @@ class DataTrainingArguments:
                 assert extension in ["csv", "json", "txt"], "`train_file` should be a csv, a json or a txt file."
             if self.validation_file is not None:
                 extension = self.validation_file.split(".")[-1]
+                assert extension in ["csv", "json", "txt"], "`validation_file` should be a csv, a json or a txt file."
+            if self.train_data_dir is not None:
+                filenames = glob.glob(f'{self.train_data_dir}/*')
+                extension = filenames[0].split(".")[-1]
                 assert extension in ["csv", "json", "txt"], "`validation_file` should be a csv, a json or a txt file."
 
                         
@@ -196,11 +203,18 @@ def main():
     set_seed(training_args.seed)
 
     data_files = {}
-    if data_args.train_file is not None:
-        data_files['train'] = data_args.train_file
-    if data_args.validation_file is not None:
-        data_files["validation"] = data_args.validation_file
-    extension = data_args.train_file.split(".")[-1]
+    if data_args.train_data_dir is not None:
+        train_files = []
+        for train_file in glob.glob(f'{data_args.train_data_dir}/*'):
+            train_files.append(train_file)
+        data_files['train'] = train_files
+        extension = train_files[0].split(".")[-1]
+    else:
+        if data_args.train_file is not None:
+            data_files['train'] = data_args.train_file
+        if data_args.validation_file is not None:
+            data_files["validation"] = data_args.validation_file
+        extension = data_args.train_file.split(".")[-1]
     if extension == 'txt':
         extension = 'text'
     datasets = load_dataset(extension, data_files=data_files, column_names=[i for i in range(16)])
