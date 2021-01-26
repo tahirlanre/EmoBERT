@@ -3,3 +3,4 @@ tensorboard==2.4.1
 tokenizers==0.9.4
 torch==1.7.1
 transformers==4.2.2
+sklearn==0.0

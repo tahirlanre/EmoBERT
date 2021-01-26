@@ -114,6 +114,12 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
+    emo_mlm: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to only mask emolex tokens. "
+        },
+    )
     emo_mlm_probability: float = field(
         default=0.3, metadata={"help": "Ratio of emolex tokens to mask for masked language modelling loss"}
     )
@@ -273,7 +279,19 @@ def main():
 
     # Data collator
     # This one will take care of randomly masking the tokens.
-    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, emo_mlm_probability=data_args.emo_mlm_probability, mlm_probability=data_args.mlm_probability, emo_lexicon=emo_lexicon)
+    if data_args.emo_mlm:
+        data_collator = DataCollatorForLanguageModeling(
+            tokenizer=tokenizer, 
+            emo_mlm_probability=data_args.emo_mlm_probability, 
+            mlm_probability=data_args.mlm_probability, 
+            emo_lexicon=emo_lexicon,
+            emo_mlm=True)
+    else:
+        data_collator = DataCollatorForLanguageModeling(
+            tokenizer=tokenizer, 
+            emo_mlm_probability=data_args.emo_mlm_probability, 
+            mlm_probability=data_args.mlm_probability, 
+            emo_lexicon=emo_lexicon)
 
      # Initialize our Trainer
     trainer = Trainer(
