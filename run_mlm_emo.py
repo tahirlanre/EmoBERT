@@ -43,7 +43,6 @@ from transformers import (
 from transformers.trainer_utils import is_main_process
 from data_collator import DataCollatorForLanguageModeling
 
-from scipy.stats import bernoulli
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +122,7 @@ class DataTrainingArguments:
         },
     )
     emo_mlm_probability: float = field(
-        default=0.3, metadata={"help": "Ratio of emolex tokens to mask for masked language modelling loss"}
+        default=0.5, metadata={"help": "Ratio of emolex tokens to mask for masked language modelling loss"}
     )
     mlm_probability: float = field(
         default=0.15, metadata={"help": "Ratio of tokens to mask for masked language modeling loss"}
@@ -165,32 +164,6 @@ def _emoji_present(text):
 
 def _emolex_present(text):
     return bool(set(emo_lexicon).intersection(text.lower().split()))
-
-def _mask_tokens(tokens, emo_lexicon, emo_mlm_probability=0.5, mlm_probability=0.15):
-    labels = []
-    for i, token in enumerate(tokens):
-        if token in emo_lexicon:
-            if bernoulli.rvs(emo_mlm_probability):
-                bert_word_piece = tokenizer.tokenize(token)
-                if len(bert_word_piece) > 1:
-                    for wp in range(len(bert_word_piece)):
-                        tokens[i] = tokenizer.convert_tokens_to_ids(tokenizer.mask_token)
-                        labels.append(tokenizer.convert_tokens_to_ids(wp))
-            else:
-                labels.append(-100)
-                continue
-        else:
-            if bernoulli.rvs(mlm_probability):
-                bert_word_piece = tokenizer.tokenize(token)
-            else:
-                labels.append(-100)
-    labels = ([-100] + labels + [-100])
-    encoding = tokenizer(tokens)
-
-    assert len(labels) == len(encoding['input_ids'])
-    encoding['labels'] = labels
-    return encoding
-
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
