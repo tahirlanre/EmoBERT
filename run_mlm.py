@@ -115,7 +115,7 @@ class DataTrainingArguments:
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
     emo_mlm_probability: float = field(
-        default=0.3, metadata={"help": "Ratio of emolex tokens to mask for masked language modelling loss"}
+        default=0.5, metadata={"help": "Ratio of emolex tokens to mask for masked language modelling loss"}
     )
     mlm_probability: float = field(
         default=0.15, metadata={"help": "Ratio of tokens to mask for masked language modeling loss"}

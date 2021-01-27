@@ -21,6 +21,8 @@ from typing import Any, Callable, Dict, List, NewType, Optional, Tuple, Union
 
 import torch
 
+from scipy.stats import bernoulli
+
 from transformers.tokenization_utils_base import BatchEncoding, PreTrainedTokenizerBase
 
 @dataclass
@@ -56,7 +58,7 @@ class DataCollatorForLanguageModeling:
     emo_lexicon: list 
     mlm: bool = True
     emo_mlm: bool = False
-    emo_mlm_probability: float = 0.3
+    emo_mlm_probability: float = 0.5
     mlm_probability: float = 0.15
     
     def __post_init__(self):
@@ -97,15 +99,11 @@ class DataCollatorForLanguageModeling:
         Prepare masked tokens inputs/labels for masked language modeling: 80% MASK, 10% random, 10% original.
         """
         labels = inputs.clone()
-        if self.emo_lexicon is None:
-            raise ValueError(
-                "Provide list of words from emo lexicon to mask"
-            )
-        emolex_indices = [list(map(lambda x: 1 if x in self.emo_lexicon else 0,self.tokenizer.convert_ids_to_tokens(val))) for val in inputs]
-        emolex_indices = torch.tensor(emolex_indices, dtype=torch.bool)
+        # emolex_indices = [list(map(lambda x: 1 if x in self.emo_lexicon else 0,self.tokenizer.convert_ids_to_tokens(val))) for val in inputs]
+        emolex_word_mask = [self.get_emolex_word_mask(val) for val in inputs]
+        emolex_word_mask = torch.tensor(emolex_word_mask, dtype=torch.bool)
 
         # We sample a few tokens in each sequence for MLM training (with probability `self.mlm_probability`)
-        emo_probability_matrix = torch.full(labels.shape, 0.0)
         probability_matrix = torch.full(labels.shape, self.mlm_probability)
         if special_tokens_mask is None:
             special_tokens_mask = [
@@ -115,25 +113,22 @@ class DataCollatorForLanguageModeling:
         else:
             special_tokens_mask = special_tokens_mask.bool()              
 
-        emo_probability_matrix.masked_fill_(emolex_indices, value=self.emo_mlm_probability)
-        emo_masked_indices = torch.bernoulli(emo_probability_matrix).bool()
-
-        # 80% of the time, we replace masked input tokens with tokenizer.mask_token ([MASK])
-        indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & emo_masked_indices
-        inputs[indices_replaced] = self.tokenizer.convert_tokens_to_ids(self.tokenizer.mask_token)
+        # we replace masked emolex input tokens with tokenizer.mask_token ([MASK])
+        # indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & emolex_word_mask
+        inputs[emolex_word_mask] = self.tokenizer.convert_tokens_to_ids(self.tokenizer.mask_token)
 
         probability_matrix.masked_fill_(special_tokens_mask, value=0.0)
-        probability_matrix.masked_fill_(emolex_indices, value=0.0)
+        probability_matrix.masked_fill_(emolex_word_mask, value=0.0)
 
         masked_indices = torch.bernoulli(probability_matrix).bool()
-        masked_indices = emo_masked_indices + masked_indices
+        masked_indices = emolex_word_mask + masked_indices
         labels[~masked_indices] = -100  # We only compute loss on masked tokens
 
         # 80% of the time, we replace masked input tokens with tokenizer.mask_token ([MASK])
         indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
         inputs[indices_replaced] = self.tokenizer.convert_tokens_to_ids(self.tokenizer.mask_token)
 
-        # The rest of the time (10% of the time) we keep the masked input tokens unchanged
+        # The rest of the time (20% of the time) we keep the masked input tokens unchanged
         return inputs, labels
 
     def mask_emo_tokens(
@@ -147,12 +142,10 @@ class DataCollatorForLanguageModeling:
             raise ValueError(
                 "Provide list of words from emo lexicon to mask"
             )
-        emolex_indices = [list(map(lambda x: 1 if x in self.emo_lexicon else 0,self.tokenizer.convert_ids_to_tokens(val))) for val in inputs]
-        emolex_indices = torch.tensor(emolex_indices, dtype=torch.bool)
+        emolex_word_mask = [self.get_emolex_word_mask(val) for val in inputs]
+        emolex_word_mask = torch.tensor(emolex_word_mask, dtype=torch.bool)
 
         # We sample a few tokens in each sequence for MLM training (with probability `self.mlm_probability`)
-        emo_probability_matrix = torch.full(labels.shape, 0.0)
-        # probability_matrix = torch.full(labels.shape, self.mlm_probability)
         if special_tokens_mask is None:
             special_tokens_mask = [
                 self.tokenizer.get_special_tokens_mask(val, already_has_special_tokens=True) for val in labels.tolist()
@@ -161,31 +154,41 @@ class DataCollatorForLanguageModeling:
         else:
             special_tokens_mask = special_tokens_mask.bool()              
 
-        emo_probability_matrix.masked_fill_(emolex_indices, value=self.emo_mlm_probability)
-        emo_masked_indices = torch.bernoulli(emo_probability_matrix).bool()
-
         # 80% of the time, we replace masked input tokens with tokenizer.mask_token ([MASK])
-        indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & emo_masked_indices
-        inputs[indices_replaced] = self.tokenizer.convert_tokens_to_ids(self.tokenizer.mask_token)
+        # indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & emolex_word_mask
+        inputs[emolex_word_mask] = self.tokenizer.convert_tokens_to_ids(self.tokenizer.mask_token)
+        labels[~emolex_word_mask] = -100  # We only compute loss on masked tokens
 
-        # probability_matrix.masked_fill_(special_tokens_mask, value=0.0)
-        # probability_matrix.masked_fill_(emolex_indices, value=0.0)
-
-        # masked_indices = torch.bernoulli(probability_matrix).bool()
-        # masked_indices = emo_masked_indices + masked_indices
-        labels[~emo_masked_indices] = -100  # We only compute loss on masked tokens
-
-        # 80% of the time, we replace masked input tokens with tokenizer.mask_token ([MASK])
-        # indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & emo_masked_indices
-        # inputs[indices_replaced] = self.tokenizer.convert_tokens_to_ids(self.tokenizer.mask_token)
-
-        # 10% of the time, we replace masked input tokens with random word
-        indices_random = torch.bernoulli(torch.full(labels.shape, 0.5)).bool() & emo_masked_indices & ~indices_replaced
-        random_words = torch.randint(len(self.tokenizer), labels.shape, dtype=torch.long)
-        inputs[indices_random] = random_words[indices_random]
-
-        # The rest of the time (10% of the time) we keep the masked input tokens unchanged
+        # The rest of the time (20% of the time) we keep the masked input tokens unchanged
         return inputs, labels
+
+    def get_emolex_word_mask(self, inputs):
+        if self.emo_lexicon is None:
+            raise ValueError(
+                "Provide list of words from emo lexicon to mask"
+            )
+        decoded_inputs = self.tokenizer.convert_tokens_to_string(
+            self.tokenizer.convert_ids_to_tokens(inputs))
+        token_wordpiece_pair = list(zip(decoded_inputs.split(), map(self.tokenizer.tokenize, decoded_inputs.split())))
+        emolex_word_indices = list(map(lambda x: 1 if x[0] in self.emo_lexicon else 0, token_wordpiece_pair))
+        emolex_word_mask = []
+        for i, index in enumerate(emolex_word_indices):
+            if index == 1:
+                if bernoulli.rvs(self.emo_mlm_probability):
+                    for token in token_wordpiece_pair[i][1]:
+                        emolex_word_mask.append(1)
+                else:
+                    for token in token_wordpiece_pair[i][1]:
+                        emolex_word_mask.append(0)
+            else:
+                for token in token_wordpiece_pair[i][1]:
+                    emolex_word_mask.append(0)
+
+        assert len(emolex_word_mask) == len(inputs), 'the length of indices should be the same as length of input'
+
+        return emolex_word_mask
+        
+
 
 @dataclass
 class EmolexDataCollatorForLanguageModeling:
