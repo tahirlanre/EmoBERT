@@ -127,6 +127,12 @@ class DataTrainingArguments:
             "If False, will pad the samples dynamically when batching to the maximum length in the batch."
         },
     )
+    filter_emolex: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to filter for EmoLex words. "
+        },
+    )
 
     def __post_init__(self):
         if self.train_file is None and self.validation_file is None and self.train_data_dir is None:
@@ -241,13 +247,22 @@ def main():
         column_names = datasets["validation"].column_names
     text_column_name = "text" if "text" in column_names else column_names[1]
 
-    def filter_function(examples):
+    def filter_emoji(examples):
         return _emoji_present(examples[text_column_name]) # TODO and _emolex_present(examples['text'])
 
+    def filter_emolex(examples):
+        return _emolex_present(examples[text_column_name])
+
     filtered_datasets = datasets.filter(
-        filter_function,
+        filter_emoji,
         num_proc=data_args.preprocessing_num_workers
     )
+
+    if data_args.filter_emolex:
+        filtered_datasets = filtered_datasets.filter(
+            filter_emolex,
+            num_proc=data_args.preprocessing_num_workers
+        )
 
     # We tokenize all texts and change all occurrences of url and usernames to special tags
     padding = "max_length" if data_args.pad_to_max_length else False
