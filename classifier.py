@@ -330,6 +330,8 @@ def main():
         metric = load_metric("glue", data_args.task_name)
     else:
         metric = load_metric("f1")
+        precision_metric = load_metric("precision")
+        recall_metric = load_metric("recall")
     # TODO: When datasets metrics include regular accuracy, make an else here and remove special branch from
     # compute_metrics
 
@@ -347,6 +349,10 @@ def main():
             return {"mse": ((preds - p.label_ids) ** 2).mean().item()}
         else:
             result = metric.compute(predictions=preds, references=p.label_ids)
+            pre_result = precision_metric.compute(predictions=preds, references=p.label_ids)
+            re_result = recall_metric.compute(predictions=preds, references=p.label_ids)
+            result = {**result, **pre_result, **re_result}
+            
             if len(result) > 0:
                 result["accuracy"] = (preds == p.label_ids).astype(np.float32).mean().item()
                 return result 
