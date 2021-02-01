@@ -2,12 +2,6 @@
 import glob
 import pandas as pd
 
-output_folders = glob.glob(f'../saved_output/classification/*')
-
-#!/usr/bin/env python
-import glob
-import pandas as pd
-
 output_folders = glob.glob(f'saved_output/classification/*')
 
 for folder in output_folders:
@@ -17,7 +11,7 @@ for folder in output_folders:
     f1_results = {}
     for file in file_names:
         cat = file.split('/')[-2].split('_')[0]
-        method = "_".join(file.split('/')[-2].split('_')[1:])
+        model = "_".join(file.split('/')[-2].split('_')[1:])
         with open(file, 'r') as f:
             for i, line in enumerate(f):
                 if i == 1:
@@ -25,17 +19,17 @@ for folder in output_folders:
                     metric = a_l[0]
                     value = a_l[-1]                   
                     if cat not in acc_results.keys():
-                        acc_results[cat] = [{method: value}]
+                        acc_results[cat] = [{model: value}]
                     else:
-                        acc_results[cat].append({method: value})
+                        acc_results[cat].append({model: value})
                 if i == 2:
                     f_l = line.split()
                     metric = f_l[0]
                     value = f_l[-1]
                     if cat not in f1_results.keys():
-                        f1_results[cat] = [{method: value}]
+                        f1_results[cat] = [{model: value}]
                     else:
-                        f1_results[cat].append({method: value})
+                        f1_results[cat].append({model: value})
         f.close()
     
     acc_df = pd.DataFrame.from_dict(acc_results, orient='index')
@@ -44,12 +38,9 @@ for folder in output_folders:
     acc_df2 = acc_df.transpose()
     f1_df2 = f1_df.transpose()
 
-    methods = ['bert_mlm','mlm_emolex', 'bert', 'emo_mlm', \
-             'mlm_health', 'emo_only_mlm', 'emo_wp_mlm', \
-             'emo_wp_mlm_only'
-            ]
-    acc_df2.index = methods
-    f1_df2.index = methods
+    models = list(set(models))
+    acc_df2.index = models
+    f1_df2.index = models
 
     acc_df3 = acc_df2
     f1_df3 = acc_df2
