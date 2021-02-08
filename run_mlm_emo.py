@@ -46,8 +46,6 @@ from data_collator import DataCollatorForLanguageModeling
 
 logger = logging.getLogger(__name__)
 
-emo_lexicon = pickle.load(open('data/emolex_emo_words.pkl', 'rb'))
-
 # emoji regex for smiley & emotion emojis from emojitracker.com
 all_emoji_regex = re.compile(r'['
                              '\U0000263a\U00002764\U0001f479-\U0001f47b\U0001f47d-'
@@ -121,6 +119,12 @@ class DataTrainingArguments:
             "help": "Whether to only mask emolex tokens. "
         },
     )
+    all_emolex_words: bool = field(
+        default=False,
+        metadata={
+            'help': "Whether to use all words from EmoLex"
+        },
+    )
     emo_mlm_probability: float = field(
         default=0.5, metadata={"help": "Ratio of emolex tokens to mask for masked language modelling loss"}
     )
@@ -140,7 +144,6 @@ class DataTrainingArguments:
             "help": "Whether to filter for EmoLex words. "
         },
     )
-
 
     def __post_init__(self):
         if self.train_file is None and self.validation_file is None and self.train_data_dir is None:
@@ -265,6 +268,11 @@ def main():
         filter_emoji,
         num_proc=data_args.preprocessing_num_workers
     )
+    
+    if data_args.all_emolex_words:
+        emo_lexicon = pickle.load(open('data/emolex_words.pkl', 'rb'))
+    else:
+        emo_lexicon = pickle.load(open('data/emolex_emo_words.pkl', 'rb'))
 
     if data_args.filter_emolex:
         filtered_datasets = filtered_datasets.filter(
