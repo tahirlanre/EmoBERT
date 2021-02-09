@@ -268,7 +268,6 @@ def main():
         filter_emoji,
         num_proc=data_args.preprocessing_num_workers
     )
-    
     if data_args.all_emolex_words:
         emo_lexicon = pickle.load(open('data/emolex_words.pkl', 'rb'))
     else:
