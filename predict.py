@@ -30,7 +30,8 @@ from transformers import (
     Trainer
 )
 
-from scipy.special import softmax
+import torch 
+import torch.nn.functional as F
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +68,10 @@ def main():
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
-        level=logging.WARN,
+        level=logging.INFO,
     )
 
-    datasets = load_dataset('csv', data_files={'test':['/media/zqxh49/CIS/data/covid/pre_covid.csv']})
+    datasets = load_dataset('csv', data_files={'test':['data/pre_covid.csv']})
     datasets = datasets['test']
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -88,9 +89,11 @@ def main():
 
     tokenized_datasets = datasets.map(preprocess_function, batched=True, remove_columns=['id', 'processed_text'])
 
-    model_dirs = glob.glob('saved_output/classification/*/*_emo_wp_mlm_april')
+    model_dirs = glob.glob('saved_output/cls_loss/*/*_emo_wp_mlm_april')
     models = {}
+    logging.info(f'No of models found {len(model_dirs)}')
     if len(model_dirs) > 1:
+        logging.info(f'**** Initiating model classes ****')
         for model_dir in model_dirs:
             cat = model_dir.split('/')[-1].split('_')[0]
             if cat not in models.keys():
@@ -101,12 +104,13 @@ def main():
         raise ValueError("Please provide location of saved models")
 
     for cat, model in models.items():
-        logging.info(f'**** Predict for {cat} class')
         predictions = []
-        for m in model:
+        for i, m in enumerate(model):
+            logging.info(f'**** Predicting  model no: {i} for {cat} class ****')
             output = predict_fn(tokenized_datasets, m, tokenizer)
-            output = softmax(output)
+            output = F.softmax(torch.from_numpy(output))
             predictions.append(output)
+            torch.cuda.empty_cache()
 
         predictions = sum(predictions)/len(predictions)
         predictions = np.argmax(predictions, axis=1)
