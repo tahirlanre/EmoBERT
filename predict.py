@@ -70,8 +70,9 @@ def main():
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO,
     )
-
-    datasets = load_dataset('csv', data_files={'test':['data/june_covid.csv']})
+    
+    data_dir = 'data/covid_tweets/pre_covid_uk.csv'
+    datasets = load_dataset('csv', data_files={'test':[data_dir]})
     datasets = datasets['test']
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -108,33 +109,29 @@ def main():
         if len(model_dirs) > 1:
             logging.info(f'**** Initialising {categ} model classes ****')
             for model_dir in model_dirs:
-                cat = model_dir.split('/')[-1].split('_')[0]
-                if cat not in models.keys():
-                    models[cat] = [model_fn(model_dir)]
+                # cat = model_dir.split('/')[-1].split('_')[0]
+                if categ not in models.keys():
+                    models[categ] = [model_fn(model_dir)]
                 else:
-                    models[cat].append(model_fn(model_dir))
+                    models[categ].append(model_fn(model_dir))
         else:
             raise ValueError("Please provide location of saved models")
 
-        for cat, model in models.items():
-            predictions = []
-            for i, m in enumerate(model):
-                logging.info(f'**** Predicting  model no: {i} for {cat} class ****')
-                output = predict_fn(tokenized_datasets, m, tokenizer)
-                output = F.softmax(torch.from_numpy(output))
-                predictions.append(output)
+        predictions = []
+        for i, m in enumerate(models[categ]):
+            logging.info(f'**** Predicting  model no: {i} for {categ} class ****')
+            output = predict_fn(tokenized_datasets, m, tokenizer)
+            predictions.append(output)
+        predictions = np.argmax(np.mean(predictions, axis=0), axis=1)
+        fname = data_dir.split('/')[-1].split('.')[0]
+        output_pred_file = f'predictions/{fname}_{categ}.txt'
 
-            predictions = sum(predictions)/len(predictions)
-            predictions = np.argmax(predictions, axis=1)
-
-            output_pred_file = f'predictions/june_covid_{cat}.txt'
-
-            with open(output_pred_file, "w") as writer:
-                logger.info(f"***** Test results *****")
-                writer.write("index\tprediction\n")
-                for index, item in enumerate(predictions):
-            #         item = label_list[item]
-                    writer.write(f"{index}\t{item}\n")
+        with open(output_pred_file, "w") as writer:
+            logger.info(f"***** Test results *****")
+            writer.write("index\tprediction\n")
+            for index, item in enumerate(predictions):
+        #         item = label_list[item]
+                writer.write(f"{index}\t{item}\n")
 
 if __name__ == "__main__":
     main() 
