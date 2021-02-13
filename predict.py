@@ -71,7 +71,7 @@ def main():
         level=logging.INFO,
     )
 
-    datasets = load_dataset('csv', data_files={'test':['data/pre_covid.csv']})
+    datasets = load_dataset('csv', data_files={'test':['data/june_covid.csv']})
     datasets = datasets['test']
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -89,40 +89,52 @@ def main():
 
     tokenized_datasets = datasets.map(preprocess_function, batched=True, remove_columns=['id', 'processed_text'])
 
-    model_dirs = glob.glob('saved_output/cls_loss/*/*_emo_wp_mlm_april')
-    models = {}
-    logging.info(f'No of models found {len(model_dirs)}')
-    if len(model_dirs) > 1:
-        logging.info(f'**** Initiating model classes ****')
-        for model_dir in model_dirs:
-            cat = model_dir.split('/')[-1].split('_')[0]
-            if cat not in models.keys():
-                models[cat] = [model_fn(model_dir)]
-            else:
-                models[cat].append(model_fn(model_dir))
-    else:
-        raise ValueError("Please provide location of saved models")
+    categories = ["Annoyed",
+            "Anxious",
+            "Denial",
+            "Empathetic",
+            "Joking",
+            "Optimistic",
+            "Pessimistic",
+            "Sad",
+            "Surprise",
+            "Thankful"
+                ]
+    
+    for categ in categories:
+        model_dirs = glob.glob(f'saved_output/cls_loss/*/{categ}_emo_wp_mlm_april')
+        models = {}
+        logging.info(f'No of models found {len(model_dirs)}')
+        if len(model_dirs) > 1:
+            logging.info(f'**** Initialising {categ} model classes ****')
+            for model_dir in model_dirs:
+                cat = model_dir.split('/')[-1].split('_')[0]
+                if cat not in models.keys():
+                    models[cat] = [model_fn(model_dir)]
+                else:
+                    models[cat].append(model_fn(model_dir))
+        else:
+            raise ValueError("Please provide location of saved models")
 
-    for cat, model in models.items():
-        predictions = []
-        for i, m in enumerate(model):
-            logging.info(f'**** Predicting  model no: {i} for {cat} class ****')
-            output = predict_fn(tokenized_datasets, m, tokenizer)
-            output = F.softmax(torch.from_numpy(output))
-            predictions.append(output)
-            torch.cuda.empty_cache()
+        for cat, model in models.items():
+            predictions = []
+            for i, m in enumerate(model):
+                logging.info(f'**** Predicting  model no: {i} for {cat} class ****')
+                output = predict_fn(tokenized_datasets, m, tokenizer)
+                output = F.softmax(torch.from_numpy(output))
+                predictions.append(output)
 
-        predictions = sum(predictions)/len(predictions)
-        predictions = np.argmax(predictions, axis=1)
+            predictions = sum(predictions)/len(predictions)
+            predictions = np.argmax(predictions, axis=1)
 
-        output_pred_file = f'pre_covid_{cat}.txt'
+            output_pred_file = f'predictions/june_covid_{cat}.txt'
 
-        with open(output_pred_file, "w") as writer:
-            logger.info(f"***** Test results *****")
-            writer.write("index\tprediction\n")
-            for index, item in enumerate(predictions):
-        #         item = label_list[item]
-                writer.write(f"{index}\t{item}\n")
+            with open(output_pred_file, "w") as writer:
+                logger.info(f"***** Test results *****")
+                writer.write("index\tprediction\n")
+                for index, item in enumerate(predictions):
+            #         item = label_list[item]
+                    writer.write(f"{index}\t{item}\n")
 
 if __name__ == "__main__":
     main() 
