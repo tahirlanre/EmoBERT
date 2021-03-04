@@ -402,15 +402,26 @@ def main():
     if training_args.do_predict:
         logger.info("*** Test ***")
 
-        test_result = trainer.predict(test_dataset=test_dataset).metrics
+        test_output = trainer.predict(test_dataset=test_dataset)
+        test_result = test_output.metrics
+        predictions = test_output.predictions
+        predictions = np.squeeze(predictions) if is_regression else np.argmax(predictions, axis=1)
+
 
         output_test_file = os.path.join(training_args.output_dir, f"test_results.txt")
+        output_prediction_file = os.path.join(training_args.output_dir, f"test_predictions.txt")
         if trainer.is_world_process_zero():
             with open(output_test_file, "w") as writer:
                 logger.info(f"***** Test results *****")
                 for key, value in sorted(test_result.items()):
                     logger.info(f"  {key} = {value}")
                     writer.write(f"{key} = {value}\n")
+
+            with open(output_prediction_file, "w") as f:
+                f.write("index\tprediction\n")
+                for index, item in enumerate(predictions):
+                    item = label_list[item]
+                    f.write(f"{index}\t{item}\n")
 
         test_results.update(test_result)
 
